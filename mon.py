@@ -21,13 +21,13 @@ def generate_code():
         return jsonify({"error": "No input text provided."}), 400
 
     # Limit input length to prevent errors
-    input_text = input_text[:1000]  # Limit to first 1000 characters
+    input_text = input_text[:500]  # Limit to first 500 characters
 
     # Generate input IDs for the model
     input_ids = tokenizer.encode(input_text, return_tensors='pt')
 
     # Check token length before generating output
-    if len(input_ids[0]) > 1024:  # Keep within a safe limit
+    if len(input_ids[0]) > 512:  # Keep within a safe limit
         return jsonify({"error": "Input text is too long. Please shorten the input."}), 400
 
     # Generate output from the model
