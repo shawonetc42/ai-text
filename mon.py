@@ -16,11 +16,22 @@ def generate_code():
     data = request.get_json()
     input_text = data.get('input_text')
 
+    # Check if input text is provided
+    if not input_text:
+        return jsonify({"error": "No input text provided."}), 400
+
+    # Limit input length to prevent errors
+    input_text = input_text[:1000]  # Limit to first 1000 characters
+
     # Generate input IDs for the model
     input_ids = tokenizer.encode(input_text, return_tensors='pt')
 
+    # Check token length before generating output
+    if len(input_ids[0]) > 1024:  # Keep within a safe limit
+        return jsonify({"error": "Input text is too long. Please shorten the input."}), 400
+
     # Generate output from the model
-    output = model.generate(input_ids, max_length=100, num_return_sequences=1, pad_token_id=tokenizer.eos_token_id)
+    output = model.generate(input_ids, max_length=50, num_return_sequences=1, pad_token_id=tokenizer.eos_token_id)
 
     # Decode the generated tokens into text
     generated_code = tokenizer.decode(output[0], skip_special_tokens=True)
