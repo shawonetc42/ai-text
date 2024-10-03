@@ -1,101 +1,37 @@
-import redis
-import json
-from datetime import datetime
-from flask import Flask, jsonify
-from pymongo import MongoClient
-from bson.objectid import ObjectId
-import logging
-import os  # Add this import
+from flask import Flask, request, jsonify
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
+# Initialize Flask app
 app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
-# Connect to MongoDB
-client = MongoClient("mongodb+srv://shawondata:shawondata@cluster0.sigdzxx.mongodb.net/shawon?retryWrites=true&w=majority")
-db = client.shawon
+# Load GPT-Neo model and tokenizer
+model_name = "EleutherAI/gpt-neo-2.7B"  # GPT-Neo model
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
-# Connect to Redis
-redis_host = 'redis-13202.c305.ap-south-1-1.ec2.redns.redis-cloud.com'
-redis_port = 13202
-redis_password = 'NcsAxaKUmj3p17qXzakYc3m7rSPwnro1'
+# Flask API route to generate code
+@app.route('/generate_code', methods=['POST'])
+def generate_code():
+    # Get the input prompt from the request JSON
+    data = request.get_json()
+    input_text = data.get('input_text')
 
-redis_client = redis.StrictRedis(host=redis_host, port=redis_port, password=redis_password, decode_responses=True)
+    # Generate input IDs for the model
+    input_ids = tokenizer.encode(input_text, return_tensors='pt')
 
-def datetime_handler(x):
-    if isinstance(x, datetime):
-        return x.isoformat()
-    raise TypeError("Unknown type")
+    # Generate output from the model
+    output = model.generate(input_ids, max_length=100, num_return_sequences=1, pad_token_id=tokenizer.eos_token_id)
 
-# Function to fetch answers and cache them
-def fetch_and_cache_answers():
-    try:
-        questions = list(db.questions.find())
+    # Decode the generated tokens into text
+    generated_code = tokenizer.decode(output[0], skip_special_tokens=True)
 
-        result = []
+    # Manually override the output if the input is 'what is your name'
+    if input_text.lower() == "what is your name":
+        generated_code = "My name is Shawon, and I am here to assist you!"
 
-        for question in questions:
-            answers = list(db.answers.find({'questionId': question['_id']}))
+    # Return the generated code as a JSON response
+    return jsonify({"generated_code": generated_code})
 
-            question_text = question.get('questiontext', '')
-
-            formatted_answers = [{
-                '_id': str(answer['_id']),
-                'answerText': answer.get('answerText', ''),
-                'answeredBy': answer.get('answeredBy', ''),
-                'questionId': str(answer.get('questionId', '')),
-                'timestamp': answer.get('timestamp', '').isoformat() if answer.get('timestamp', '') else '',
-                'answerUserPhoto': answer.get('answerUserPhoto', ''),
-                'questiontext': question_text
-            } for answer in answers]
-
-            result.extend(formatted_answers)
-
-        redis_client.setex('answersall_cache', 10, json.dumps(result, default=datetime_handler))
-
-        return result
-
-    except Exception as e:
-        app.logger.error(f"Failed to fetch answers: {str(e)}")
-        return None
-
-@app.route('/answersall', methods=['GET'])
-def get_answers_datas():
-    try:
-        cached_response = redis_client.get('answersall_cache')
-        if cached_response:
-            app.logger.debug("Cache hit")
-            return jsonify(json.loads(cached_response)), 200
-        else:
-            app.logger.debug("Cache miss")
-
-        result = fetch_and_cache_answers()
-        if result is None:
-            return jsonify({'error': 'Failed to fetch answers'}), 500
-
-        return jsonify(result), 200
-
-    except Exception as e:
-        app.logger.error(f"Failed to fetch answers: {str(e)}")
-        return jsonify({'error': 'Failed to fetch answers', 'details': str(e)}), 500
-
-@app.route('/answers', methods=['GET'])
-def get_questions_with_answers():
-    try:
-        questions = list(db.questions.find())
-        
-        for question in questions:
-            question['_id'] = str(question['_id'])
-            question['answers'] = list(db.answers.find({'questionId': ObjectId(question['_id'])}))
-            for answer in question['answers']:
-                answer['_id'] = str(answer['_id'])
-                answer['questionId'] = str(answer['questionId'])
-                if 'timestamp' in answer and isinstance(answer['timestamp'], datetime):
-                    answer['timestamp'] = answer['timestamp'].isoformat()
-        
-        return jsonify(questions), 200
-    except Exception as e:
-        return jsonify({'error': 'Failed to fetch questions', 'details': str(e)}), 500
-
+# Run the Flask app
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(debug=True)
