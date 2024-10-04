@@ -1,7 +1,7 @@
+import os
 from flask import Flask, request, jsonify
 from transformers import GPTNeoForCausalLM, GPT2Tokenizer
 import torch
-import os  # os লাইব্রেরি যোগ করুন
 
 app = Flask(__name__)
 
@@ -27,5 +27,6 @@ def generate_story():
     return jsonify({'story': generated_story})
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # PORT পরিবেশ পরিবর্তনশীল ব্যবহার করুন
-    app.run(host='0.0.0.0', port=port, debug=True)  # host 0.0.0.0 সেট করুন
+    # রেন্ডারে চলার সময় PORT এনভায়রনমেন্ট ভ্যারিয়েবল থেকে পোর্ট নম্বর নিন
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
