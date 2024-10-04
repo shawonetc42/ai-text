@@ -5,10 +5,10 @@ import os  # os মডিউল ইম্পোর্ট করা হচ্ছ�
 
 app = Flask(__name__)
 
-# ছোট GPT-Neo মডেল লোড করা
-model_name = "EleutherAI/gpt-neo-125M"
-model = GPTNeoForCausalLM.from_pretrained(model_name)
-tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+# মডেল এবং টোকেনাইজার লোড করা
+MODEL_NAME = "EleutherAI/gpt-neo-125M"
+model = GPTNeoForCausalLM.from_pretrained(MODEL_NAME)
+tokenizer = GPT2Tokenizer.from_pretrained(MODEL_NAME)
 
 @app.route('/generate', methods=['POST'])
 def generate_story():
@@ -23,7 +23,9 @@ def generate_story():
     try:
         # ইনপুট টোকেনাইজ করা
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
-        attention_mask = (input_ids != tokenizer.pad_token_id).long()
+        
+        # attention_mask তৈরি করা এবং torch.long এ কাস্ট করা
+        attention_mask = (input_ids != tokenizer.pad_token_id).to(torch.long)
 
         # আউটপুট জেনারেট করা
         output = model.generate(
@@ -43,7 +45,7 @@ def generate_story():
     except Exception as e:
         return jsonify({'error': str(e)}), 500  # ত্রুটির ক্ষেত্রে 500 স্ট্যাটাস কোড ফেরত দিন
 
-
 if __name__ == '__main__':
-    # PORT পরিবেশ পরিবর্তনশীল ব্যবহার করে Flask অ্যাপ্লিকেশন চালানো
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # পরিবেশ পরিবর্তনশীল ব্যবহার করে Flask অ্যাপ্লিকেশন চালানো
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
